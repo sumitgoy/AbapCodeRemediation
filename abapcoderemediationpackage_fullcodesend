@@ -1,0 +1,73 @@
+*&---------------------------------------------------------------------*
+*& Report ZTETS_CODE_CALL_LAMBDA
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT ztets_code_call_lambda.
+
+
+DATA : lo_session TYPE REF TO /aws1/cl_rt_session_base .
+DATA lo_lmd TYPE REF TO /aws1/if_lmd .
+DATA : iv_functionname  TYPE /aws1/lmdnamespacedfuncname .
+DATA : oo_result TYPE REF TO /aws1/cl_lmdinvocationresponse .
+DATA : lv_json_xstring TYPE xstring .
+
+DATA : BEGIN OF wa_response,
+         status_code TYPE string,
+         body        TYPE string,
+       END OF wa_response .
+
+BREAK-POINT .
+TRY.
+*    lv_json_xstring = /aws1/cl_rt_util=>string_to_xstring(
+*      `{`  &&
+*        `"action": "increment",`  &&
+*        `"number": 10` &&
+*      `}`
+*    ).
+
+    lo_session   = /aws1/cl_rt_session_aws=>create( 'S3_PROFILE' ).
+    lo_lmd = /aws1/cl_lmd_factory=>create( lo_session ).
+
+
+    iv_functionname = 'helloWorldAmitMumbai' .
+
+*    DATA(op_result) =  lo_lmd->listfunctions( ).       " oo_result is returned for testing purposes. "
+*    DATA(lt_functions) = op_result->get_functions( ).
+*    MESSAGE 'Retrieved list of Lambda functions.' TYPE 'I'.
+
+    oo_result =  lo_lmd->invoke(                  " oo_result is returned for testing purposes. "
+             iv_functionname = iv_functionname
+*             iv_payload = lv_json_xstring
+         ).
+
+    DATA(lv_xstring) = oo_result->get_payload( ).
+    DATA(string_response) = cl_abap_codepage=>convert_from( lv_xstring ).
+
+    /ui2/cl_json=>deserialize(
+         EXPORTING json = string_response
+                   pretty_name = /ui2/cl_json=>pretty_mode-camel_case
+         CHANGING  data  = wa_response ).	“Here in wa_response-body will contain the response of “lambda				
+
+    MESSAGE wa_response-body TYPE 'I'.
+    MESSAGE 'Lambda function invoked.' TYPE 'I'.
+
+  CATCH /aws1/cx_lmdinvparamvalueex.
+    MESSAGE 'The request contains a non-valid parameter.' TYPE 'E'.
+  CATCH /aws1/cx_lmdinvrequestcontex.
+    MESSAGE 'Unable to parse request body as JSON.' TYPE 'E'.
+  CATCH /aws1/cx_lmdinvalidzipfileex.
+    MESSAGE 'The deployment package could not be unzipped.' TYPE 'E'.
+  CATCH /aws1/cx_lmdrequesttoolargeex.
+    MESSAGE 'Invoke request body JSON input limit was exceeded by the request payload.' TYPE 'E'.
+  CATCH /aws1/cx_lmdresourceconflictex.
+    MESSAGE 'Resource already exists or another operation is in progress.' TYPE 'E'.
+  CATCH /aws1/cx_lmdresourcenotfoundex.
+    MESSAGE 'The requested resource does not exist.' TYPE 'E'.
+  CATCH /aws1/cx_lmdserviceexception.
+    MESSAGE 'An internal problem was encountered by the AWS Lambda service.' TYPE 'E'.
+  CATCH /aws1/cx_lmdtoomanyrequestsex.
+    MESSAGE 'The maximum request throughput was reached.' TYPE 'E'.
+  CATCH /aws1/cx_lmdunsuppedmediatyp00.
+    MESSAGE 'Invoke request body does not have JSON as its content type.' TYPE 'E'.
+ENDTRY.
