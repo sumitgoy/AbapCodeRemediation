@@ -1,0 +1,195 @@
+import boto3
+import logging
+import os
+import time
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+def close(session_attributes, fulfillment_state, message):
+    response = {
+        'sessionAttributes': session_attributes,
+        'dialogAction': {
+            'type': 'Close',
+            'fulfillmentState': fulfillment_state,
+            'message': message
+        }
+    }
+
+    return response
+
+def lambda_handler(event, context):
+    # TODO implement
+    logger.debug('event.bot.name={}'.format(event['bot']['name']))
+    return dispatch(event)
+
+def dispatch(intent_request):
+    intent_name= intent_request['currentIntent']['name']
+    if intent_name == 'startsap':
+        return start_ec2(intent_request)
+    if intent_name == 'stopsap':
+        return stop_ec2(intent_request)
+    if intent_name == 'backup':
+        return backup_ec2(intent_request)
+    if intent_name == 'memory':
+        return memory_ec2(intent_request)
+    raise Exception (intent_name + 'not supported')
+
+
+def start_ec2(intent_request):
+    card_title = "Starting"
+   
+    slot = intent_request['currentIntent']['slots']
+    instance_value = intent_request['currentIntent']['slots']['instance']
+    
+    output_session = {}
+    insID = []
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    response = ec2.describe_instances()
+    instID = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            for i in instance["Tags"]:
+                if(i["Value"]==instance_value):
+                    instID.append(instance["InstanceId"])
+    ssm = boto3.client('ssm', region_name='ap-southeast-2')
+    response = ssm.send_command(
+    DocumentName = "startsap",
+    InstanceIds = instID
+    )
+    command_id = response['Command']['CommandId']
+    output = ssm.get_command_invocation(
+      CommandId=command_id,
+      InstanceId=instID[0]
+    )
+    while output['Status'] =="InProgress":
+         output = ssm.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instID[0]
+         )
+    
+    
+    return close(
+        output_session,'Fulfilled', {
+            'contentType' : 'PlainText',
+            'content' : 'Starting HANA server with instance-id ' + instID[0] + ', and detail output is \n ' + output['StandardOutputContent'] 
+        }
+    )
+def stop_ec2(intent_request):
+    card_title = "Stopping"
+   
+    slot = intent_request['currentIntent']['slots']
+    instance_value = intent_request['currentIntent']['slots']['instance']
+    
+    output_session = {}
+    insID = []
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    response = ec2.describe_instances()
+    instID = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            for i in instance["Tags"]:
+                if(i["Value"]==instance_value):
+                    instID.append(instance["InstanceId"])
+    ssm = boto3.client('ssm', region_name='ap-southeast-2')
+    response = ssm.send_command(
+    DocumentName = "stopsap",
+    InstanceIds = instID
+    )
+    command_id = response['Command']['CommandId']
+    output = ssm.get_command_invocation(
+      CommandId=command_id,
+      InstanceId=instID[0]
+    )
+    while output['Status'] =="InProgress":
+         output = ssm.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instID[0]
+         )
+    
+    
+    return close(
+        output_session,'Fulfilled', {
+            'contentType' : 'PlainText',
+            'content' : 'Stopping HANA server with instance-id ' + instID[0] + ', and detail output is \n ' + output['StandardOutputContent'] 
+        }
+    )
+def backup_ec2(intent_request):
+    card_title = "Backup hana DB"
+   
+    slot = intent_request['currentIntent']['slots']
+    instance_value = intent_request['currentIntent']['slots']['instance']
+    
+    output_session = {}
+    insID = []
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    response = ec2.describe_instances()
+    instID = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            for i in instance["Tags"]:
+                if(i["Value"]==instance_value):
+                    instID.append(instance["InstanceId"])
+    ssm = boto3.client('ssm', region_name='ap-southeast-2')
+    response = ssm.send_command(
+    DocumentName = "hana-backup",
+    InstanceIds = instID
+    )
+    command_id = response['Command']['CommandId']
+    output = ssm.get_command_invocation(
+      CommandId=command_id,
+      InstanceId=instID[0]
+    )
+    while output['Status'] =="InProgress":
+         output = ssm.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instID[0]
+         )
+    
+    
+    return close(
+        output_session,'Fulfilled', {
+            'contentType' : 'PlainText',
+            'content' : 'Backing HANA server with instance-id ' + instID[0] + ', and detail output is \n ' + output['StandardOutputContent'] 
+        }
+    )
+    
+def memory_ec2(intent_request):
+    card_title = "Memory is..."
+   
+    slot = intent_request['currentIntent']['slots']
+    instance_value = intent_request['currentIntent']['slots']['instance']
+    
+    output_session = {}
+    insID = []
+    ec2 = boto3.client('ec2', region_name='ap-southeast-2')
+    response = ec2.describe_instances()
+    instID = []
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            for i in instance["Tags"]:
+                if(i["Value"]==instance_value):
+                    instID.append(instance["InstanceId"])
+    ssm = boto3.client('ssm', region_name='ap-southeast-2')
+    response = ssm.send_command(
+    DocumentName = "memory-check",
+    InstanceIds = instID
+    )
+    command_id = response['Command']['CommandId']
+    output = ssm.get_command_invocation(
+      CommandId=command_id,
+      InstanceId=instID[0]
+    )
+    while output['Status'] =="InProgress":
+         output = ssm.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instID[0]
+         )
+    
+    
+    return close(
+        output_session,'Fulfilled', {
+            'contentType' : 'PlainText',
+            'content' : 'HANA ' + instID[0] + ', has below Memory utilization \n ' + output['StandardOutputContent'] 
+        }
+    )   
